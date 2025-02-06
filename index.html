@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Blockly App</title>
+  <script src="node_modules/blockly/blockly_compressed.js"></script>
+  <script src="node_modules/blockly/blocks_compressed.js"></script>
+  <script src="node_modules/blockly/msg/en.js"></script>
+  <style>
+    #blocklyDiv { height: 80vh; width: 100%; }
+  </style>
+</head>
+<body>
+  <div id="blocklyDiv"></div>
+  <button onclick="compile()">Compile</button>
+  <button onclick="run()">Run</button>
+
+  <script>
+const { ipcRenderer } = require('electron')
+    //database_fetch define
+Blockly.Blocks['database_fetch'] = {
+  init: function() {
+    this.appendDummyInput()
+      .appendField("Fetch from database")
+      .appendField(new Blockly.FieldDropdown([
+        ['tag_1','tag_1'], 
+        ['tag_2','tag_2'],
+        ['tag_3','tag_3'],
+        ['tag_4','tag_4']
+      ]), 'TAG');
+    this.setOutput(true, 'Number');
+  }
+}
+
+//Define the Blocks as toolbox
+    const workspace = Blockly.inject('blocklyDiv', {
+      toolbox: `
+        <xml>
+          <block type="controls_if"></block>
+          <block type="controls_for"></block>
+          <block type="database_fetch"></block>
+          <block type="math_arithmetic"></block>
+        </xml>
+      `
+    })
+
+function compile() {
+  const xml = Blockly.Xml.workspaceToDom(workspace)
+  const csvData = []
+
+  Array.from(xml.getElementsByTagName('block')).forEach(block => {
+    const type = block.getAttribute('type')
+    const id = block.getAttribute('id')
+    const fields = Array.from(block.getElementsByTagName('field'))
+      .reduce((acc, field) => {
+        acc[field.getAttribute('name')] = field.textContent
+        return acc
+      }, {})
+
+    csvData.push(`${id},${type},${JSON.stringify(fields)}`)
+  })
+
+  const csvContent = 'id,type,params\n' + csvData.join('\n')
+
+  // Send CSV data to main process for saving
+  ipcRenderer.send('save-csv', csvContent)
+}
+
+
+function run() {
+    console.log("Sending request to run Python script...")
+    ipcRenderer.send('run-python')
+  }
+
+  ipcRenderer.on('python-output', (event, output) => {
+    console.log('Python Output:', output)
+  })
+
+  ipcRenderer.on('python-error', (event, error) => {
+    console.error('Python Error:', error)
+  })
+
+  ipcRenderer.on('python-exit', (event, code) => {
+    console.log(`Python script finished with exit code: ${code}`)
+  })
+
+  const socket = new WebSocket('ws://localhost:8765');
+
+socket.onopen = () => {
+  console.log("Connected to WebSocket server");
+};
+
+socket.onmessage = (event) => {
+  const statuses = JSON.parse(event.data);
+  statuses.forEach(status => {
+    const block = workspace.getBlockById(status.id);
+    if (block) {
+      block.setColour(status.status === 'success' ? '#00ff00' : '#ff0000');
+    }
+  });
+};
+
+</script>
+</body>
+</html>
