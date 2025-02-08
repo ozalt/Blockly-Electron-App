@@ -83,22 +83,37 @@ function run() {
     console.log(`Python script finished with exit code: ${code}`)
   })
 
-  const socket = new WebSocket('ws://localhost:8765');
+  let socket;
 
-socket.onopen = () => {
-  console.log("Connected to WebSocket server");
-};
+function connectWebSocket() {
+    socket = new WebSocket('ws://localhost:8765');
 
-socket.onmessage = (event) => {
-  const statuses = JSON.parse(event.data);
-  statuses.forEach(status => {
-    const block = workspace.getBlockById(status.id);
-    if (block) {
-      block.setColour(status.status === 'success' ? '#00ff00' : '#ff0000');
-    }
-  });
-};
+    socket.onopen = () => {
+        console.log("Connected to WebSocket server");
+    };
 
+    socket.onmessage = (event) => {
+        try {
+            const statuses = JSON.parse(event.data);
+            statuses.forEach(status => {
+                const block = workspace.getBlockById(status.id);
+                if (block) {
+                    block.setColour(status.status === 'success' ? '#00ff00' : '#ff0000');
+                }
+            });
+        } catch (error) {
+            console.error("Received invalid JSON:", event.data);
+        }
+    };
+
+    socket.onclose = () => {
+        console.warn("WebSocket disconnected. Reconnecting in 5 seconds...");
+        setTimeout(connectWebSocket, 5000);
+    };
+}
+
+// Start WebSocket connection
+connectWebSocket();
 </script>
 </body>
 </html>

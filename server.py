@@ -7,11 +7,18 @@ async def websocket_handler(websocket, path):
     try:
         while True:
             message = await websocket.recv()
-            print(f"Received: {message}")
+            try:
+                data = json.loads(message)  # Ensure it's valid JSON
+                print(f"Received JSON: {data}")
+            except json.JSONDecodeError:
+                print(f"Received invalid JSON: {message}")
+
             response = {"status": "ok", "message": "Message received"}
             await websocket.send(json.dumps(response))
+
     except websockets.exceptions.ConnectionClosed:
         print("WebSocket disconnected")
+
 
 # Start WebSocket Server
 async def start_server():
